@@ -1,0 +1,126 @@
+---
+title: "Lab 1 - Series de tiempo"
+author: "Marcelo Costamagna, Angelina Garnica y Pablo Ortiz"
+date: "Septiembre de 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(forecast)
+```
+
+## Tráfico de suscriptores de telefonía móvil (miles de minutos)
+
+Se analizarán a continuación el tráfico del total de minutos salientes (incluyendo suscriptores pospagos y prepagos). Los datos provienen de  <https://datosabiertos.enacom.gob.ar/visualizations/29890/trafico-de-suscriptores-de-telefonia-movil-miles-de-minutos/>.
+
+
+### Base de datos
+```{r df}
+df <- read.csv("dataset/Telefonia_movil.csv")
+colnames(df) <- c("ano", "trimestre", "pospago", "prepago", "total", "periodo") # Cambio de nombre de variables
+```
+
+```{r}
+head(df)
+```
+
+Definimos como un objeto ts
+
+```{r ts}
+datats <- ts(df[,3:5], start = 2003, frequency = 4)
+```
+
+### Análisis descriptivo
+
+```{r plot1}
+datats <- ts(df[,3:5], start = 2013, frequency = 4)
+
+autoplot(datats) +
+  ggtitle("Tráfico de suscriptores de telefonía móvil") +
+  xlab("Año") +
+  ylab("Miles de minutos") +
+  expand_limits(y = 0)
+```
+
+A continuación se presentan los *seasonal plots* de las series de suscriptores prepago y pospago. En ambos casos podría considerar una situación de menor cantidad de minutos en los primeros trimestres, aunque no resulta tan clara la presencia de estacionalidad, particularmente en el caso de prepago, debido a la fuerte caida en algunos trimestre (i.e. *Q4* de 2013 y 2017). 
+
+
+```{r}
+ggseasonplot(datats[, "pospago"], year.labels=TRUE, year.labels.left=TRUE) +
+  ylab("miles de minutos") +
+  xlab("Trimestre") +
+  ggtitle("Seasonal plot: Suscriptores pospago") +
+  theme_bw()
+```
+
+## Modelos
+Se presentan a continuación los modelos Random Walk (Naïve) y Exponential Smoothing para la serie corresponiente al tráfico total.
+
+Como se observa, en ambos casos el diagnóstico de errores arroja que los mismos se distribuyen aproximadamente normal con media cero (aunque debería realizarse un test estadístico para corroborarlo), al tiempo que no hay presencia de autocorrelación, por lo que la serie puede asociarse a ruido blanco, en tanto ambos modelos resultan adecuados en este sentido.
+
+Al evaluar la precisión de predicción de ambos modelos, no se observan diferencias sustanciales entre ambos modelos, ya que indicadores como porcentaje de error (MPE) y media absoluta del porcentaje de error (MAPE) tienen magnitudes similares en ambos casos.
+
+### Random Walk (Naïve)
+
+A continuación se presentan predicciones de acuerdo al modelo Naïve, y los intervalos de confianzaasociados a niveles de confianza de 80\% y 90\%, para los últimos cuatro trimiestres disponibles en el *data set* (2018-Q2 a 2019-Q1).
+
+```{r}
+ts2 <- window(datats[, "total"], start = 2013, end = c(2018,1))
+h <- 4
+mf <- naive(ts2, h = h)
+mf
+```
+
+
+```{r}
+autoplot(mf) +
+  autolayer(fitted(mf), series="Random Walk (Naïve)") +
+  ylab("miles de minutos") + xlab("Año") +
+  ggtitle("Forecasts: Tráfico de suscriptores de telefonía móvil (Total)") +
+  guides(colour=guide_legend(title="Forecast"))
+```
+
+
+**Diagnóstico de errores**
+```{r}
+checkresiduals(mf)
+```
+
+**Evaluación del modelo**
+```{r}
+round(accuracy(mf), 4)
+```
+
+### Simple exponential smoothing
+
+A continuación se presentan predicciones de acuerdo al modelo de suavizado exponencial simple (SES), y los intervalos de confianza asociados a niveles de confianza de 80\% y 90\%, para los últimos cuatro trimiestres disponibles en el *data set* (2018-Q2 a 2019-Q1).
+
+```{r}
+# Estimate parameters
+fc <- ses(ts2, h = 4)
+fc
+```
+
+```{r}
+autoplot(fc) +
+  autolayer(fitted(fc), series="Simple Exponential Smoothing (SES)") +
+  ylab("miles de minutos") + xlab("Año") +
+  ggtitle("Forecasts: Tráfico de suscriptores de telefonía móvil (Total)") +
+  guides(colour=guide_legend(title="Forecast"))
+```
+
+**Diagnóstico de errores***
+
+```{r}
+checkresiduals(fc)
+```
+
+**Evaluación del modelo**
+
+```{r}
+# Accuracy of one-step-ahead training errors
+round(accuracy(fc), 2)
+```
+
